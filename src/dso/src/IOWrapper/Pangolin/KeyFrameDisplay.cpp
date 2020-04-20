@@ -22,7 +22,6 @@
 */
 
 
-
 #include <stdio.h>
 #include "util/settings.h"
 
@@ -243,6 +242,7 @@ bool KeyFrameDisplay::refreshPC(bool canRefresh, float scaledTH, float absTH, in
 			tmpVertexBuffer[vertexBufferNumPoints][1] = ((originalInputSparse[i].v+dy)*fyi + cyi) * depth;
 			tmpVertexBuffer[vertexBufferNumPoints][2] = depth*(1 + 2*fxi * (rand()/(float)RAND_MAX-0.5f));
 
+			//怀疑是在这里的具体pose
 
 
 			if(my_displayMode==0)
@@ -392,6 +392,8 @@ void KeyFrameDisplay::drawPC(float pointSize)
 		glDrawArrays(GL_POINTS, 0, numGLBufferGoodPoints);
 		glDisableClientState(GL_VERTEX_ARRAY);
 		vertexBuffer.Unbind();
+
+
 
 		glDisableClientState(GL_COLOR_ARRAY);
 		colorBuffer.Unbind();

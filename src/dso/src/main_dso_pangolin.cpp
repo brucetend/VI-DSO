@@ -21,6 +21,20 @@
 * along with DSO. If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "ros/ros.h"
+#include "sensor_msgs/Imu.h"
+
+#include "image_transport/image_transport.h"
+#include <cv_bridge/cv_bridge.h>
+#include <tf_conversions/tf_eigen.h>
+
+#include <opencv2/opencv.hpp>
+#include <pcl_ros/point_cloud.h>
+#include <tf/transform_listener.h>
+#include <tf/transform_broadcaster.h>
+#include <image_transport/image_transport.h>
+
+
 
 
 #include <thread>
@@ -662,69 +676,165 @@ void getPicTimestamp(){
 	}
 }
 
+
+
+
+
+
+namespace enc = sensor_msgs::image_encodings;
+class Detector
+{
+public:
+    Detector(ros::NodeHandle& nh);
+    ~Detector();
+    void imageCallback(const sensor_msgs::ImageConstPtr& tem_msg);
+    void imuCallback(const sensor_msgs::ImuConstPtr &msg);
+    sensor_msgs::Imu imu_data;
+    cv::Mat image;
+
+private:
+    image_transport::ImageTransport it_;
+    image_transport::Subscriber img_sub_;
+    ros::Publisher cloud_publisher;
+   //tf publischer not yet
+    ros::Subscriber imu_sub_;
+};
+
+
+
+//成员函数的定义
+Detector::Detector(ros::NodeHandle& nh)
+:it_(nh)
+{
+    cloud_publisher = nh.advertise<pcl::PointCloud<pcl::PointXYZ> >("cloud", 1, true);
+    imu_sub_ = nh.subscribe("/imu_topic_name",1, &Detector::imuCallback, this);
+}
+
+void Detector::imuCallback(const sensor_msgs::ImuConstPtr &msg)
+{
+    ROS_INFO("haha");
+}
+
+Detector::~Detector()
+{
+
+}
+
+void Detector::imageCallback(const sensor_msgs::ImageConstPtr& tem_msg)
+{
+    cv_bridge::CvImagePtr cv_ptr;
+    try{
+         cv_ptr = cv_bridge::toCvCopy(tem_msg, enc::BGR8);
+         cv::waitKey(1);
+    }
+    catch (cv_bridge::Exception& e)    {
+        ROS_ERROR("Could not convert from '%s' to 'mono8'.", tem_msg->encoding.c_str());
+    }
+//    process(cv_ptr->image);
+
+      image = cv_ptr->image;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 int main( int argc, char** argv )
 {
-	//setlocale(LC_ALL, "");
-	imu_weight = 3;
-	imu_weight_tracker = 0.1;
-	stereo_weight = 2;
-	for(int i=1; i<argc;i++)
-		parseArgument(argv[i]);
 
-	if(gt_path.size()>0)getGroundtruth_euroc();
-	if(T_stereo.size()>0)getTstereo();
-	if(imu_info.size()>0)getIMUinfo();
-	
+
+        ros::init(argc, argv, "detector");
+        ros::NodeHandle nh( "~");
+        Detector det(nh);
+
+
+
+
+
+
+
+
+
+
+        //setlocale(LC_ALL, "");
+        imu_weight = 3;
+        imu_weight_tracker = 0.1;
+        stereo_weight = 2;
+        for(int i=1; i<argc;i++)
+                parseArgument(argv[i]);
+
+        if(gt_path.size()>0)getGroundtruth_euroc();
+        if(T_stereo.size()>0)getTstereo();
+        if(imu_info.size()>0)getIMUinfo();
+
 // 	Mat33 R_BC;
 // 	R_BC<<0.0148655429818,-0.999880929698,0.00414029679422,0.999557249008,0.0149672133247,0.025715529948,-0.0257744366974,0.00375618835797,0.999660727178;
 // 	Vec3 t_BC;
 // 	t_BC<<-0.0216401454975,-0.064676986768,0.00981073058949;
 // 	T_BC = SE3(R_BC,t_BC);
-	
+
 // 	GyrCov = Mat33::Identity()*1.6968e-04*1.6968e-04/0.005;
 // 	AccCov = Mat33::Identity()*2.0000e-3*2.0000e-3/0.005;
 // 	GyrRandomWalkNoise = Mat33::Identity()*1.9393e-05*1.9393e-05;
 // 	AccRandomWalkNoise = Mat33::Identity()*3.0000e-3*3.0000e-3;
-	
-	G_norm = 9.81;
-	imu_use_flag = true;
-	imu_track_flag = true;
-	use_optimize = true;
-	imu_track_ready = false;
-	use_Dmargin = true;
-	setting_initialIMUHessian = 0;
-	setting_initialScaleHessian = 0;
-	setting_initialbaHessian = 0;
-	setting_initialbgHessian = 0;
-	imu_lambda = 5;
-	d_min = sqrt(1.1);
-	setting_margWeightFac_imu = 0.25;
-	
-	getIMUdata_euroc();
-	getPicTimestamp();
-	
-	double time_start;
-	
-	
-	// hook crtl+C.
-	boost::thread exThread = boost::thread(exitThread);
+
+        G_norm = 9.81;
+        imu_use_flag = true;
+        imu_track_flag = true;
+        use_optimize = true;
+        imu_track_ready = false;
+        use_Dmargin = true;
+        setting_initialIMUHessian = 0;
+        setting_initialScaleHessian = 0;
+        setting_initialbaHessian = 0;
+        setting_initialbgHessian = 0;
+        imu_lambda = 5;
+        d_min = sqrt(1.1);
+        setting_margWeightFac_imu = 0.25;
+
+        getIMUdata_euroc();
+        getPicTimestamp();
+
+        double time_start;
 
 
-	ImageFolderReader* reader = new ImageFolderReader(source0, calib0, gammaCalib, vignette);
-	ImageFolderReader* reader_right;
-	if(use_stereo)
-	  reader_right= new ImageFolderReader(source1, calib1, gammaCalib, vignette);
-	else
-	  reader_right= new ImageFolderReader(source0, calib0, gammaCalib, vignette);
-	reader->setGlobalCalibration();
+        // hook crtl+C.
+        boost::thread exThread = boost::thread(exitThread);
+
+
+        ImageFolderReader* reader = new ImageFolderReader(source0, calib0, gammaCalib, vignette);
+        ImageFolderReader* reader_right;
+        if(use_stereo)
+          reader_right= new ImageFolderReader(source1, calib1, gammaCalib, vignette);
+        else
+          reader_right= new ImageFolderReader(source0, calib0, gammaCalib, vignette);
+        reader->setGlobalCalibration();
 // 	reader_right->setGlobalCalibration();
-	int w_out, h_out;
-	reader_right->getCalibMono(K_right,w_out,h_out);
-	
-	LOG(INFO)<<"K_right: \n"<<K_right;
+        int w_out, h_out;
+        reader_right->getCalibMono(K_right,w_out,h_out);
+
+        LOG(INFO)<<"K_right: \n"<<K_right;
 // 	LOG(INFO)<<"T_C0C1: \n"<<T_C0C1.matrix();
 // 	exit(1);
 
+    int32_t gpu_;
 	if(setting_photometricCalibration > 0 && reader->getPhotometricGamma() == 0)
 	{
 		printf("ERROR: dont't have photometric calibation. Need to use commandline options mode=1 or mode=2 ");
